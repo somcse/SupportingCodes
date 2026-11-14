@@ -336,8 +336,3 @@ if __name__ == "__main__":
     if not args.skip_wfg:
         generate_individual_wfg_3d_plots(args.out_dir, seed=args.seed)
     print("\nAll figures generated!")
-    generate_figure2_factorial_and_ranks(args.out_dir)
-    generate_individual_zdt_plots(args.out_dir, seed=args.seed)
-    if not args.skip_wfg:
-        generate_individual_wfg_3d_plots(args.out_dir, seed=args.seed)
-    print("\nAll figures generated!")
