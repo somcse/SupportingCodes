@@ -7,6 +7,7 @@ from plotly.subplots import make_subplots
 
 from mgpso_ablation_framework import (
     ABLATION_CONFIGS,
+    AblationConfig,
     HyperParameters,
     run_mgpso_ablation,
     get_zdt_problem,
@@ -79,13 +80,13 @@ def save_plotly_figure(fig: go.Figure, base_path_no_ext: str, width: int, height
 
 
 def generate_figure1_comparative_zdt(out_dir: str, seed: int = 42):
-    print("\n[1/4] Generating Figure 1: Comparative ZDT Ablation Fronts...")
+    print("\n[1/4] Generating Figure 1 (`fig1_zdt_ablation_comparison.png`): Comparative ZDT Ablation & Tchebycheff Control...")
     hp = HyperParameters()
     fig = make_subplots(
         rows=2, cols=2,
         subplot_titles=(
             "<b>(a) ZDT1 (Convex): Uniform Coverage via TS</b>",
-            "<b>(b) ZDT2 (Concave): Collapse Without PM</b>",
+            "<b>(b) ZDT2 (Concave): Sum Collapse vs. Tchebycheff Control</b>",
             "<b>(c) ZDT3 (Disconnected): Global vs. Ring Propagation</b>",
             "<b>(d) ZDT6 (Biased Density): Density-Bias Mitigation</b>",
         ),
@@ -104,31 +105,32 @@ def generate_figure1_comparative_zdt(out_dir: str, seed: int = 42):
                              marker=dict(symbol="triangle-up", size=7, color="#d95f02", opacity=0.8)), row=1, col=1)
     fig.add_trace(go.Scatter(x=f_nots[:, 0], y=f_nots[:, 1], mode="markers", name="NO_TS (Uniform Archive)",
                              marker=dict(symbol="square", size=6, color="#7570b3", opacity=0.8)), row=1, col=1)
-    fig.add_trace(go.Scatter(x=f_prop[:, 0], y=f_prop[:, 1], mode="markers", name="PROPOSED (Full MGPSO)",
+    fig.add_trace(go.Scatter(x=f_prop[:, 0], y=f_prop[:, 1], mode="markers", name="PROPOSED (Sum Scalar.)",
                              marker=dict(symbol="circle", size=6, color="#1b9e77", opacity=0.9), legendgroup="prop"), row=1, col=1)
 
     eval_fn, xl, xu, pf, n_gen, _ = get_zdt_problem("ZDT2")
     _, f_prop2 = run_mgpso_ablation(eval_fn, xl, xu, n_gen, ABLATION_CONFIGS["PROPOSED"], hp, seed=seed)
     _, f_nopm2 = run_mgpso_ablation(eval_fn, xl, xu, n_gen, ABLATION_CONFIGS["NO_PM"], hp, seed=seed)
-    _, f_onpm2 = run_mgpso_ablation(eval_fn, xl, xu, n_gen, ABLATION_CONFIGS["ONLY_PM"], hp, seed=seed)
+    cfg_nopm_tch = AblationConfig("NO_PM_TCH", ring=True, ts=True, pm=False, scalarization="chebyshev")
+    _, f_nopm_tch2 = run_mgpso_ablation(eval_fn, xl, xu, n_gen, cfg_nopm_tch, hp, z_star=np.zeros(2), seed=seed)
 
     fig.add_trace(go.Scatter(x=pf[:, 0], y=pf[:, 1], mode="lines", name="True Pareto Front",
                              line=dict(color="black", width=2.5), showlegend=False, legendgroup="pf"), row=1, col=2)
-    fig.add_trace(go.Scatter(x=f_onpm2[:, 0], y=f_onpm2[:, 1], mode="markers", name="ONLY_PM (Sparse Front)",
-                             marker=dict(symbol="diamond", size=7, color="#7570b3", opacity=0.8)), row=1, col=2)
-    fig.add_trace(go.Scatter(x=f_prop2[:, 0], y=f_prop2[:, 1], mode="markers", name="PROPOSED (Full MGPSO)",
+    fig.add_trace(go.Scatter(x=f_nopm_tch2[:, 0], y=f_nopm_tch2[:, 1], mode="markers", name="NO_PM (Tchebycheff Control)",
+                             marker=dict(symbol="diamond", size=6.5, color="#2b5c8f", opacity=0.85)), row=1, col=2)
+    fig.add_trace(go.Scatter(x=f_prop2[:, 0], y=f_prop2[:, 1], mode="markers", name="PROPOSED (Sum Scalar.)",
                              marker=dict(symbol="circle", size=6, color="#1b9e77", opacity=0.9), showlegend=False, legendgroup="prop"), row=1, col=2)
-    fig.add_trace(go.Scatter(x=f_nopm2[:, 0], y=f_nopm2[:, 1], mode="markers", name="NO_PM & ONLY_RING Collapse (1 pt)",
+    fig.add_trace(go.Scatter(x=f_nopm2[:, 0], y=f_nopm2[:, 1], mode="markers", name="NO_PM & ONLY_RING (Sum Collapse)",
                              marker=dict(symbol="x", size=13, color="#e7298a", line=dict(color="black", width=1.2))), row=1, col=2)
 
     fig.add_annotation(
         x=float(f_nopm2[0, 0]), y=float(f_nopm2[0, 1]),
         xref="x2", yref="y2",
-        text="<b>Zero-variance collapse<br>at (0, 1) without PM</b>",
+        text="<b>Sum-scalarized collapse at (0, 1)<br>(eliminated under Tchebycheff)</b>",
         showarrow=True, arrowhead=2, arrowsize=1.1, arrowwidth=1.8, arrowcolor="#b00058",
-        ax=95, ay=55,
+        ax=98, ay=55,
         bgcolor="#fff5f8", bordercolor="#e7298a", borderwidth=1.2,
-        font=dict(size=12, color="#b00058"),
+        font=dict(size=11.5, color="#b00058"),
     )
 
     eval_fn, xl, xu, pf, n_gen, _ = get_zdt_problem("ZDT3")
@@ -140,10 +142,10 @@ def generate_figure1_comparative_zdt(out_dir: str, seed: int = 42):
                              marker=dict(symbol="circle", size=3.5, color="black"), showlegend=False, legendgroup="pf"), row=2, col=1)
     fig.add_trace(go.Scatter(x=f_onrg3[:, 0], y=f_onrg3[:, 1], mode="markers", name="ONLY_RING (Slow Jump)",
                              marker=dict(symbol="triangle-up", size=7, color="#d95f02", opacity=0.8)), row=2, col=1)
-    fig.add_trace(go.Scatter(x=f_prop3[:, 0], y=f_prop3[:, 1], mode="markers", name="PROPOSED (Full MGPSO)",
+    fig.add_trace(go.Scatter(x=f_prop3[:, 0], y=f_prop3[:, 1], mode="markers", name="PROPOSED (Sum Scalar.)",
                              marker=dict(symbol="circle", size=6, color="#1b9e77", opacity=0.85), showlegend=False, legendgroup="prop"), row=2, col=1)
     fig.add_trace(go.Scatter(x=f_onts3[:, 0], y=f_onts3[:, 1], mode="markers", name="ONLY_TS (Fastest Jump)",
-                             marker=dict(symbol="star", size=7.5, color="#2b5c8f", opacity=0.95)), row=2, col=1)
+                             marker=dict(symbol="star", size=7.5, color="#7570b3", opacity=0.95)), row=2, col=1)
 
     eval_fn, xl, xu, pf, n_gen, _ = get_zdt_problem("ZDT6")
     _, f_prop6 = run_mgpso_ablation(eval_fn, xl, xu, n_gen, ABLATION_CONFIGS["PROPOSED"], hp, seed=seed)
@@ -155,7 +157,7 @@ def generate_figure1_comparative_zdt(out_dir: str, seed: int = 42):
                              line=dict(color="black", width=2.5), showlegend=False, legendgroup="pf"), row=2, col=2)
     fig.add_trace(go.Scatter(x=f_base6_v[:, 0], y=f_base6_v[:, 1], mode="markers", name="BASELINE (0,0,0)",
                              marker=dict(symbol="triangle-up", size=7.5, color="#d95f02", opacity=0.85), showlegend=False), row=2, col=2)
-    fig.add_trace(go.Scatter(x=f_prop6_v[:, 0], y=f_prop6_v[:, 1], mode="markers", name="PROPOSED (Full MGPSO)",
+    fig.add_trace(go.Scatter(x=f_prop6_v[:, 0], y=f_prop6_v[:, 1], mode="markers", name="PROPOSED (Sum Scalar.)",
                              marker=dict(symbol="circle", size=6, color="#1b9e77", opacity=0.9), showlegend=False, legendgroup="prop"), row=2, col=2)
 
     for r in (1, 2):
@@ -180,45 +182,48 @@ def generate_figure1_comparative_zdt(out_dir: str, seed: int = 42):
 
 
 def generate_figure2_factorial_and_ranks(out_dir: str):
-    print("\n[2/4] Generating Figure 2: Friedman Ranks (with CD=2.81) & 2^3 Factorial Effects (with 95% CIs)...")
+    print("\n[2/4] Generating Figure 3 (`fig2_factorial_effects_and_ranks.png`): Updated Friedman Ranks (N_p=13) & 2^3 Factorial Effects...")
     fig = make_subplots(
         rows=1, cols=2,
         subplot_titles=(
-            "<b>(a) Friedman Ranks (Nemenyi CD<sub>0.05</sub> = 2.81)</b>",
+            "<b>(a) Friedman Ranks (N<sub>p</sub>=13, CD<sub>0.05</sub>=2.91)</b>",
             "<b>(b) 2<sup>3</sup> Factorial Main Effects (ΔIGD ± 95% CI)</b>",
         ),
         horizontal_spacing=0.14,
     )
 
     cfg_labels = [
-        "BASELINE (0,0,0)", "ONLY_PM (1,0,0)", "ONLY_TS (0,1,0)", "NO_TS (1,0,1)",
-        "NO_RING (1,1,0)", "ONLY_RING (0,0,1)", "NO_PM (0,1,1)", "PROPOSED (1,1,1)",
+        "BASELINE (0,0,0)", "ONLY_PM (1,0,0)", "NO_TS (1,0,1)", "ONLY_TS (0,1,0)",
+        "ONLY_RING (0,0,1)", "NO_RING (1,1,0)", "NO_PM (0,1,1)", "PROPOSED (1,1,1)",
     ]
-    igd_ranks = [5.79, 5.36, 4.86, 4.86, 4.36, 4.21, 3.71, 2.86]
-    hv_ranks  = [5.89, 5.96, 4.50, 4.50, 4.36, 4.54, 3.46, 2.79]
+    # Updated N_p = 13 converged-benchmark ranks (with corrected WFG5 ONLY_PM HV = 63.366 ± 1.877)
+    igd_ranks = [6.08, 5.46, 5.00, 4.69, 4.46, 4.08, 3.62, 2.62]
+    hv_ranks  = [6.08, 5.54, 4.58, 4.58, 4.62, 4.42, 3.46, 2.73]
 
     fig.add_trace(go.Bar(
         y=cfg_labels, x=hv_ranks, orientation="h",
-        name="HV Mean Rank (Lower = Better)",
+        name="HV Mean Rank (N<sub>p</sub>=13, Lower = Better)",
         marker=dict(color="#2b5c8f", line=dict(color="black", width=0.8)),
         text=[f"{v:.2f}" for v in hv_ranks], textposition="outside",
     ), row=1, col=1)
 
     fig.add_trace(go.Bar(
         y=cfg_labels, x=igd_ranks, orientation="h",
-        name="IGD Mean Rank (Lower = Better)",
+        name="IGD Mean Rank (N<sub>p</sub>=13, Lower = Better)",
         marker=dict(color="#1b9e77", line=dict(color="black", width=0.8)),
         text=[f"<b>{v:.2f}</b>" for v in igd_ranks], textposition="outside",
     ), row=1, col=1)
 
-    # Nemenyi Critical Difference threshold line from PROPOSED IGD rank (2.86 + 2.81 = 5.67)
-    fig.add_vline(x=2.86 + 2.81, line_dash="dash", line_color="#b00058", line_width=1.5, row=1, col=1)
+    # Nemenyi Critical Difference threshold line from PROPOSED IGD rank (2.62 + 2.91 = 5.53)
+    fig.add_vline(x=2.62 + 2.91, line_dash="dash", line_color="#b00058", line_width=1.6, row=1, col=1)
+    # Holm step-down threshold line (2.62 + 2.38*0.961 = 4.91)
+    fig.add_vline(x=2.62 + 2.73 * 0.961, line_dash="dot", line_color="#d95f02", line_width=1.4, row=1, col=1)
 
-    benchmarks = ["ZDT1<br>(Convex)", "ZDT2<br>(Concave)", "ZDT3<br>(Disconn.)", "WFG2<br>(Disconn.)", "WFG6<br>(Non-Sep.)", "WFG8<br>(Biased)"]
-    eff_pm   = [-0.0091, -0.4438, -0.0094, -0.0408, -0.0055, -0.0017]
-    eff_ts   = [-0.0303, -0.1069, -0.0414, -0.2318, -0.0450, -0.0393]
-    eff_ring = [+0.0005, -0.0249, +0.0673, +0.0242, -0.0685, -0.0917]
-    ci95     = [0.0053,  0.0161,  0.0082,  0.0273,  0.0057,  0.1002]
+    benchmarks = ["ZDT1<br>(Convex)", "ZDT2<br>(Concave)", "ZDT3<br>(Disconn.)", "WFG2<br>(Disconn.)", "WFG6<br>(Non-Sep.)", "WFG8*<br>(No Outlier)"]
+    eff_pm   = [-0.0091, -0.4438, -0.0094, -0.0408, -0.0055, -0.0042]
+    eff_ts   = [-0.0303, -0.1069, -0.0414, -0.2318, -0.0450, -0.0325]
+    eff_ring = [+0.0005, -0.0249, +0.0673, +0.0242, -0.0685, -0.0595]
+    ci95     = [0.0053,  0.0161,  0.0082,  0.0273,  0.0057,  0.0082]
 
     fig.add_trace(go.Bar(
         x=benchmarks, y=eff_pm, name="Main Effect Δ<sub>PM</sub>",
@@ -238,7 +243,7 @@ def generate_figure2_factorial_and_ranks(out_dir: str):
 
     fig.add_hline(y=0.0, line_width=1.2, line_color="black", row=1, col=2)
 
-    fig.update_xaxes(title_text="Friedman Mean Rank Across 14 Benchmarks", range=[0, 6.9],
+    fig.update_xaxes(title_text="Friedman Mean Rank Across 13 Converged Benchmarks", range=[0, 7.1],
                      showgrid=True, gridcolor="#e6e6e6", mirror=True, showline=True, linecolor="black", row=1, col=1)
     fig.update_yaxes(mirror=True, showline=True, linecolor="black", row=1, col=1)
 
@@ -326,6 +331,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     generate_figure1_comparative_zdt(args.out_dir, seed=args.seed)
+    generate_figure2_factorial_and_ranks(args.out_dir)
+    generate_individual_zdt_plots(args.out_dir, seed=args.seed)
+    if not args.skip_wfg:
+        generate_individual_wfg_3d_plots(args.out_dir, seed=args.seed)
+    print("\nAll figures generated!")
     generate_figure2_factorial_and_ranks(args.out_dir)
     generate_individual_zdt_plots(args.out_dir, seed=args.seed)
     if not args.skip_wfg:
